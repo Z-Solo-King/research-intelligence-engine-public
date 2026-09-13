@@ -1,10 +1,16 @@
 name: deploy-public-worker
 
 on:
+  push:
+    branches: [main]
   workflow_dispatch:
 
 permissions:
   contents: read
+
+concurrency:
+  group: deploy-public-worker
+  cancel-in-progress: false
 
 jobs:
   deploy:
@@ -13,24 +19,66 @@ jobs:
       contents: read
     steps:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
-      - uses: astral-sh/setup-uv@37802adc94f370d6bfd71619e3f0bf239e1f3b78 # v7.6.0
+      - uses: astral-sh/setup-uv@20cfd1bf945f4377ade1205e4dbc17946fc9a30d # v10.0.1
         with:
           version: 0.12.11
-      - name: Validate D1 configuration
+      - name: Run public tests
+        run: uv run --with pytest pytest tests/ -v
+      - name: Resolve production D1 database id
+        id: d1
         shell: bash
+        env:
+          CLOUDFLARE_API_TOKEN: ${{ secrets.CLOUDFLARE_API_TOKEN }}
+          CLOUDFLARE_ACCOUNT_ID: ${{ secrets.CLOUDFLARE_ACCOUNT_ID }}
         run: |
           set -euo pipefail
-          if grep -q 'database_id = "REPLACE_WITH_D1_DATABASE_ID"' wrangler.toml; then
-            echo 'Set the real D1 database_id in wrangler.toml before deployment.'
-            exit 1
-          fi
+          database_id=$(curl -fsSL \
+            -H "Authorization: Bearer ${CLOUDFLARE_API_TOKEN}" \
+            -H 'Content-Type: application/json' \
+            "https://api.cloudflare.com/client/v4/accounts/${CLOUDFLARE_ACCOUNT_ID}/d1/database" \
+            | jq -r '.result[] | select(.name == "research-intelligence") | .uuid' \
+            | head -n 1)
+          test -n "${database_id}" && test "${database_id}" != "null"
+          echo "database_id=${database_id}" >> "$GITHUB_OUTPUT"
+      - name: Generate production Wrangler configuration
+        shell: bash
+        env:
+          D1_DATABASE_ID: ${{ steps.d1.outputs.database_id }}
+        run: |
+          set -euo pipefail
+          cat > wrangler.production.generated.toml <<EOF
+name = "research-intelligence-engine-public"
+main = "worker.py"
+compatibility_date = "2026-09-09"
+compatibility_flags = ["python_workers"]
+workers_dev = true
+preview_urls = false
+
+[[d1_databases]]
+binding = "DB"
+database_name = "research-intelligence"
+database_id = "${D1_DATABASE_ID}"
+
+[[services]]
+binding = "CONTROL_PLANE"
+service = "research-intelligence-engine-private"
+
+[secrets]
+required = ["AUTH_TOKEN", "B2_KEY_ID", "B2_APPLICATION_KEY"]
+
+[vars]
+ENVIRONMENT = "production"
+STRICT_ZERO_COST_ONLY = "true"
+B2_BUCKET = "SoloKing"
+B2_ENDPOINT = "https://s3.eu-central-003.backblazeb2.com"
+EOF
       - name: Apply D1 migrations
         env:
           CLOUDFLARE_API_TOKEN: ${{ secrets.CLOUDFLARE_API_TOKEN }}
           CLOUDFLARE_ACCOUNT_ID: ${{ secrets.CLOUDFLARE_ACCOUNT_ID }}
-        run: npx wrangler@4.129.1 d1 migrations apply research-intelligence --remote
+        run: npx wrangler@4.131.1 d1 migrations apply research-intelligence --remote --config wrangler.production.generated.toml
       - name: Deploy Python Worker
         env:
           CLOUDFLARE_API_TOKEN: ${{ secrets.CLOUDFLARE_API_TOKEN }}
           CLOUDFLARE_ACCOUNT_ID: ${{ secrets.CLOUDFLARE_ACCOUNT_ID }}
-        run: uv run --with workers-py==1.16.7 pywrangler deploy
+        run: uv run pywrangler deploy --config wrangler.production.generated.toml
