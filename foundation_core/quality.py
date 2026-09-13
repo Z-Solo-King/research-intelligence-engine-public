@@ -5,6 +5,7 @@ from collections.abc import Mapping
 from dataclasses import dataclass
 import re
 
+from .field_routing import route_field
 from .normalization import normalize_specs
 
 
@@ -29,9 +30,22 @@ def evaluate_price_spec_plausibility(raw: Mapping[str, object]) -> tuple[Plausib
     """Return explainable cross-check signals without changing observed values."""
     price = _num(raw.get("price"))
     if price is None:
+        routed_price = route_field(raw, "price")
+        price = _num(routed_price.value) if routed_price is not None else None
+    if price is None:
         return ()
+
     specs = normalize_specs(raw.get("specs"))
-    category = " ".join(str(raw.get(key) or "").lower() for key in ("category", "product_type", "title"))
+    category_field = route_field(raw, "category")
+    title_field = route_field(raw, "title")
+    category = " ".join(
+        str(value or "").lower()
+        for value in (
+            category_field.value if category_field is not None else None,
+            raw.get("product_type"),
+            title_field.value if title_field is not None else None,
+        )
+    )
     signals: list[PlausibilitySignal] = []
     panel = str(specs.get("panel") or specs.get("panel_type") or "").lower()
     refresh = _num(specs.get("refresh_rate") or specs.get("hz"))
