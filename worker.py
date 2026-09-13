@@ -10,6 +10,7 @@ from workers import Response, WorkerEntrypoint
 
 from backend.api.main import submit_research
 from backend.api.models import ResearchRequest
+from backend.persistence.cloudflare import CloudflarePersistence
 from backend.sources.http import fetch_public_url
 
 
@@ -55,8 +56,6 @@ async def _readiness_payload(env):
 
 
 async def _ingest_sources(env, run_id, req):
-    from backend.persistence.cloudflare import CloudflarePersistence
-
     persistence = CloudflarePersistence(env)
     results = []
     for index, url in enumerate(req.source_urls[:req.max_sources]):
@@ -181,8 +180,6 @@ class Default(WorkerEntrypoint):
             return Response.json({"ok": True, **payload})
 
         if request.method == "POST" and path.endswith("/api/v1/research"):
-            from backend.persistence.cloudflare import CloudflarePersistence
-
             if not _authorized(request, self.env):
                 return Response.json({"ok": False, "error": "unauthorized"}, status=401)
             payload = await _json(request)
