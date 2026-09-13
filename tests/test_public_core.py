@@ -131,7 +131,7 @@ def test_map_product_handles_alternate_images_and_offer_fallbacks() -> None:
 
 def test_map_product_handles_empty_or_non_mapping_inputs_for_optional_sections() -> None:
     mapped = map_product({"images": "", "offers": "", "source": ""})
-    assert mapped["offers"] if False else True
+    assert mapped["stock"] == "Unknown"
     assert mapped["title"] is None
     assert mapped["images"] == ()
     assert mapped["image_provenance"] == ()
