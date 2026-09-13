@@ -1,10 +1,10 @@
 {
-  "schema": 3,
+  "schema": 4,
   "purpose": "Machine-readable navigation for humans and AI agents across the active Z-Solo-King family.",
   "repo": "foundation",
   "role": "public-contracts",
   "family_ownership": {
-    "foundation": "public-safe research contracts, evidence primitives, deterministic planning, API boundary",
+    "foundation": "public-safe research contracts, evidence primitives, deterministic planning, API boundary, and deterministic observed-data core",
     "operations": "private policy, resources, evaluation, promotion, trust boundary, chatbot control-plane knowledge and complete private execution",
     "extractor-mapper": "deleted historical source; selected material is retained only in operations/archive/extractor-mapper/"
   },
@@ -13,7 +13,15 @@
     "evidence": ["backend/evidence_certificate.py", "backend/evidence_selection.py"],
     "evaluation_primitives": ["backend/evaluation/"],
     "api": ["backend/api/"],
-    "resource_guard": ["backend/execution/resources.py"]
+    "resource_guard": ["backend/execution/resources.py"],
+    "deterministic_observed_data": ["foundation_core/", "docs/PUBLIC_DETERMINISTIC_CORE.md"]
+  },
+  "public_package": {
+    "name": "research-intelligence-engine",
+    "module": "foundation_core",
+    "installable": true,
+    "private_consumer": "operations/pyproject.toml",
+    "pin_rule": "Operations consumes an explicit Foundation commit rather than an unpinned moving branch."
   },
   "chatbot_boundary": {
     "public_entrypoint": "backend.api.main.submit_research",
@@ -21,8 +29,14 @@
     "private_owner": "operations/private/chatbot/",
     "private_execution_owner": "operations/extractor_mapper/"
   },
-  "must_not_own": ["private policy authority", "global resource governance", "promotion", "credentials", "protected deployment topology", "heavy extraction", "heavy product mapping"],
-  "design_rules": ["deterministic-first", "one canonical implementation per behavior", "small modules", "public-safe data only", "contracts before cross-repo implementation", "chatbot must use typed contracts rather than duplicate algorithms", "evidence selection is budgeted but caller-defined trust policy remains outside Foundation", "version cross-repository contracts", "validate before business logic", "generated artifacts are never sources of truth"],
+  "ci_boundary": {
+    "public_ci": "Foundation GitHub-hosted standard runners",
+    "private_ci": "no GitHub Actions workflows in Operations",
+    "coverage_rule": "100% branch coverage for Foundation product sources under the public coverage gate",
+    "private_evidence_rule": "Foundation CI does not certify private Operations runtime behavior"
+  },
+  "must_not_own": ["private policy authority", "global resource governance", "promotion", "credentials", "protected deployment topology", "heavy acquisition", "platform recovery", "private evaluation holdouts", "private chatbot execution"],
+  "design_rules": ["deterministic-first", "one canonical implementation per behavior", "small modules", "public-safe data only", "contracts before cross-repo implementation", "chatbot must use typed contracts rather than duplicate algorithms", "evidence selection is budgeted but caller-defined trust policy remains outside Foundation", "version cross-repository contracts", "validate before business logic", "generated artifacts are never sources of truth", "public files use ordinary descriptive names rather than deceptive or obfuscated naming", "private functionality is excluded by architecture and boundary scans"],
   "hot_path_guidance": {
     "prefer": ["tuple/dict indexes", "bounded work", "stable typed contracts", "single-pass transforms", "deduplicated evidence under explicit budgets"],
     "avoid": ["repeated list scans", "duplicate policy engines", "large monolithic modules", "large payloads in control envelopes", "lossy evidence compression without explicit budget"]
