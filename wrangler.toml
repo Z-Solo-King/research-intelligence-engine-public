@@ -2,23 +2,23 @@ name = "research-intelligence-engine-public"
 main = "worker.py"
 compatibility_date = "2026-09-09"
 compatibility_flags = ["python_workers"]
+workers_dev = true
+preview_urls = false
 
 [[d1_databases]]
 binding = "DB"
 database_name = "REPLACE_WITH_PUBLIC_DATABASE_NAME"
 database_id = "REPLACE_WITH_D1_DATABASE_ID"
 
-[[r2_buckets]]
-binding = "ARTIFACTS"
-bucket_name = "REPLACE_WITH_PUBLIC_ARTIFACT_BUCKET"
-
 [[services]]
 binding = "CONTROL_PLANE"
 service = "REPLACE_WITH_PRIVATE_CONTROL_PLANE_SERVICE"
 
 [secrets]
-required = ["AUTH_TOKEN"]
+required = ["AUTH_TOKEN", "B2_KEY_ID", "B2_APPLICATION_KEY"]
 
 [vars]
 ENVIRONMENT = "production"
 STRICT_ZERO_COST_ONLY = "true"
+B2_BUCKET = "SoloKing"
+B2_ENDPOINT = "https://s3.eu-central-003.backblazeb2.com"
