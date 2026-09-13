@@ -24,13 +24,15 @@ The private repository remains authoritative for acquisition, extraction strateg
 
 ## Package contract
 
-The public package is installed from the Foundation repository by the private repository using a pinned Git commit. Pinning is intentional: a private deployment must consume an explicit public-core revision rather than whatever happens to be at the public default branch at deployment time.
+Operations consumes an explicitly pinned Foundation commit through `scripts/sync_public_core.py`. The deployment path materializes that exact revision into an ignored generated package; Operations does not depend on a floating branch and does not use a Git URL dependency in Worker metadata.
 
 The public package exposes only deterministic data functions. It treats input as observed data and must never invent a missing fact.
 
 ## Tests and coverage
 
-Public CI compiles the complete public tree, installs the package, runs the full Foundation test suite with branch coverage, and enforces 100% coverage across `backend`, `foundation_core`, and `worker`.
+Public CI compiles the complete public tree, installs the package, runs the full Foundation test suite with branch coverage, and enforces 100% coverage across the unit-testable product surface in `backend`, `foundation_core`, and `worker`.
+
+The Cloudflare Worker-only `backend/persistence/artifacts.py` transport adapter is intentionally excluded from the unit coverage denominator because its network implementation is bound to the Cloudflare Workers runtime; the test suite still exercises the persistence interface and response-shape normalization around it. Runtime deployment/smoke validation remains the authoritative integration check for that adapter.
 
 The public suite also checks:
 
