@@ -99,7 +99,14 @@ class CloudflarePersistence:
         return {"key": key, "sha256": digest, "size": len(content)}
 
     async def get_artifact(self, key):
-        return await self.artifacts.get(key)
+        value = await self.artifacts.get(key)
+        if value is None or isinstance(value, (bytes, bytearray, memoryview)):
+            return bytes(value) if value is not None else None
+        body = getattr(value, "body", None)
+        array_buffer = getattr(body, "arrayBuffer", None)
+        if callable(array_buffer):
+            return bytes(await array_buffer())
+        return value
 
     async def delete_artifact(self, key):
         await self.artifacts.delete(key)
