@@ -8,11 +8,6 @@ from urllib.parse import urlparse
 
 from workers import Response, WorkerEntrypoint
 
-from backend.api.main import health_endpoint, readiness_endpoint, submit_research
-from backend.api.models import ResearchRequest
-from backend.persistence.cloudflare import CloudflarePersistence
-from backend.sources.http import fetch_public_url
-
 
 def _bearer_token(request):
     value = request.headers.get("Authorization")
@@ -38,7 +33,28 @@ async def _json(request):
         return None
 
 
+async def _health_payload():
+    # Keep the health path dependency-light: importing the full execution graph
+    # is deferred until a route actually needs it.
+    from backend.api.main import health_endpoint
+
+    return health_endpoint()
+
+
+async def _readiness_payload(env):
+    from backend.api.main import readiness_endpoint
+
+    base = readiness_endpoint()
+    control_ready = await _control_plane_ready(env)
+    ready = base["ready"] and control_ready
+    return {**base, "control_plane": control_ready}, 200 if ready else 503
+
+
 async def _ingest_sources(env, run_id, req):
+    from backend.persistence.cloudflare import CloudflarePersistence
+    from backend.sources.http import fetch_public_url
+
+    persistence = CloudflarePersistence(env)
     results = []
     for index, url in enumerate(req.source_urls[:req.max_sources]):
         fetched = await fetch_public_url(url)
@@ -62,10 +78,10 @@ async def _ingest_sources(env, run_id, req):
         ).bind(source_id, fetched.final_url, family, "direct", now, now, access_state).run()
 
         artifact_ref = f"raw/{run_id}/{observation_id}/{content_hash}"
-        await env.ARTIFACTS.put(
+        await persistence.put_artifact(
             artifact_ref,
             fetched.content,
-            httpMetadata={"contentType": fetched.content_type},
+            content_type=fetched.content_type,
         )
 
         await env.DB.prepare(
@@ -143,13 +159,11 @@ class Default(WorkerEntrypoint):
         path = request.url.split("?", 1)[0]
 
         if request.method == "GET" and path.endswith("/health"):
-            return Response.json(health_endpoint())
+            return Response.json(await _health_payload())
 
         if request.method == "GET" and path.endswith("/readiness"):
-            base = readiness_endpoint()
-            control_ready = await _control_plane_ready(self.env)
-            ready = base["ready"] and control_ready
-            return Response.json({**base, "control_plane": control_ready}, status=200 if ready else 503)
+            payload, status = await _readiness_payload(self.env)
+            return Response.json(payload, status=status)
 
         if request.method == "GET" and "/api/v1/research/" in path:
             if not _authorized(request, self.env):
@@ -164,6 +178,10 @@ class Default(WorkerEntrypoint):
             return Response.json({"ok": True, **payload})
 
         if request.method == "POST" and path.endswith("/api/v1/research"):
+            from backend.api.main import submit_research
+            from backend.api.models import ResearchRequest
+            from backend.persistence.cloudflare import CloudflarePersistence
+
             if not _authorized(request, self.env):
                 return Response.json({"ok": False, "error": "unauthorized"}, status=401)
             payload = await _json(request)
