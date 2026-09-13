@@ -4,6 +4,20 @@ Public contract core for the Z-Solo-King GitHub family.
 
 This repository contains public-safe contracts, schemas, reusable deterministic primitives, and the public CI evidence path. Protected execution, governance, evaluation holdouts, credentials, and promotion authority live outside this public repository.
 
+## Documentation first
+
+`docs/DOCUMENTATION_INDEX.md` is the canonical navigation contract for humans and AI agents working on Foundation. Start there when entering an unfamiliar session.
+
+The recommended order is:
+
+1. `README.md`
+2. `AI_CODEMAP.json`
+3. `docs/DOCUMENTATION_INDEX.md`
+4. `docs/FAMILY_CONTRACT.json`
+5. `docs/FAMILY_ARCHITECTURE.md`
+6. `docs/PUBLIC_DETERMINISTIC_CORE.md`
+7. the relevant subsystem/workflow documentation
+
 ## Public deterministic core
 
 `foundation_core/` is the canonical public implementation for deterministic observed-data routing, normalization, plausibility checks, and product mapping. See `docs/PUBLIC_DETERMINISTIC_CORE.md` for the exact boundary and maintenance rules.
