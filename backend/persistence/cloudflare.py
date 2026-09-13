@@ -78,25 +78,28 @@ class CloudflarePersistence:
         if row is None:
             raise RuntimeError("idempotency claim was not persisted")
         if row["request_hash"] != request_hash:
-            raise IdempotencyConflictError("idempotency key belongs to a different request")
+            raise IdempotencyConflictError("idempotency key was already used for a different request")
         return row["run_id"]
 
     async def get_run(self, run_id):
-        row = await self.env.DB.prepare("SELECT * FROM research_runs WHERE run_id = ?").bind(run_id).first()
-        return row
+        return await self.env.DB.prepare(
+            "SELECT * FROM research_runs WHERE run_id = ?"
+        ).bind(run_id).first()
 
     async def set_run_status(self, run_id, status):
         if status not in {"planned", "running", "completed", "failed"}:
             raise ValueError("invalid run status")
-        now = datetime.now(timezone.utc).isoformat()
         await self.env.DB.prepare(
             "UPDATE research_runs SET status = ?, updated_at = ? WHERE run_id = ?"
-        ).bind(status, now, run_id).run()
-        return status
+        ).bind(status, datetime.now(timezone.utc).isoformat(), run_id).run()
 
     async def put_artifact(self, key, content, content_type="application/octet-stream"):
+        digest = hashlib.sha256(content).hexdigest()
         await self.artifacts.put(key, content, content_type=content_type)
-        return {"key": key, "size": len(content), "content_type": content_type}
+        return {"key": key, "sha256": digest, "size": len(content)}
 
     async def get_artifact(self, key):
         return await self.artifacts.get(key)
+
+    async def delete_artifact(self, key):
+        await self.artifacts.delete(key)
