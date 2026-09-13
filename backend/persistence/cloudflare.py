@@ -1,13 +1,14 @@
-"""Concrete D1/R2 adapters for Cloudflare Python Workers."""
+"""Concrete D1 and provider-neutral artifact persistence for Cloudflare Workers."""
 
 from datetime import datetime, timezone
 import hashlib
 import json
 
+from backend.persistence.artifacts import artifact_store_from_env
+
 
 class IdempotencyConflictError(RuntimeError):
     """Raised when an idempotency key is reused for a different request."""
-
 
 
 def request_fingerprint(request) -> str:
@@ -27,6 +28,7 @@ def request_fingerprint(request) -> str:
 class CloudflarePersistence:
     def __init__(self, env):
         self.env = env
+        self.artifacts = artifact_store_from_env(env)
 
     async def create_run(self, run_id, request):
         now = datetime.now(timezone.utc).isoformat()
@@ -44,12 +46,7 @@ class CloudflarePersistence:
         return run_id
 
     async def create_run_idempotent(self, request, idempotency_key: str):
-        """Atomically claim an idempotency key and create its stable run.
-
-        The run ID is derived from the idempotency key, so retries cannot create
-        orphan runs. D1 batch execution is transactional and avoids a
-        SELECT-then-INSERT race.
-        """
+        """Atomically claim an idempotency key and create its stable run."""
         if not idempotency_key or not idempotency_key.strip():
             raise ValueError("idempotency_key must not be empty")
         request_hash = request_fingerprint(request)
@@ -98,13 +95,11 @@ class CloudflarePersistence:
 
     async def put_artifact(self, key, content, content_type="application/octet-stream"):
         digest = hashlib.sha256(content).hexdigest()
-        await self.env.ARTIFACTS.put(
-            key, content, httpMetadata={"contentType": content_type}
-        )
+        await self.artifacts.put(key, content, content_type=content_type)
         return {"key": key, "sha256": digest, "size": len(content)}
 
     async def get_artifact(self, key):
-        obj = await self.env.ARTIFACTS.get(key)
-        if obj is None:
-            return None
-        return await obj.body.arrayBuffer()
+        return await self.artifacts.get(key)
+
+    async def delete_artifact(self, key):
+        await self.artifacts.delete(key)
