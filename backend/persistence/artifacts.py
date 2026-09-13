@@ -8,8 +8,6 @@ import hmac
 import re
 from urllib.parse import quote, urlparse
 
-from workers import fetch
-
 
 class ArtifactStore:
     async def put(self, key: str, content: bytes, *, content_type: str = "application/octet-stream") -> None:
@@ -91,10 +89,20 @@ class B2ArtifactStore(ArtifactStore):
         )
         return headers, authorization
 
+    @staticmethod
+    def _workers_fetch():
+        """Load the Cloudflare runtime adapter only inside an actual Worker."""
+        try:
+            from workers import fetch
+        except ImportError as exc:
+            raise RuntimeError("Cloudflare Workers runtime is required for artifact persistence") from exc
+        return fetch
+
     async def _request(self, method: str, key: str, body: bytes = b"", content_type: str | None = None):
         url = self._url(key)
         headers, authorization = self._authorization(method, url, body, datetime.now(timezone.utc), content_type)
         headers["authorization"] = authorization
+        fetch = self._workers_fetch()
         response = await fetch(url, method=method, headers=headers, body=body if method == "PUT" else None)
         return response
 
