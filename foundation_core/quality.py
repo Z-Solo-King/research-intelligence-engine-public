@@ -5,6 +5,8 @@ from collections.abc import Mapping
 from dataclasses import dataclass
 import re
 
+from .normalization import normalize_specs
+
 
 @dataclass(frozen=True)
 class PlausibilitySignal:
@@ -28,7 +30,7 @@ def evaluate_price_spec_plausibility(raw: Mapping[str, object]) -> tuple[Plausib
     price = _num(raw.get("price"))
     if price is None:
         return ()
-    specs = raw.get("specs") if isinstance(raw.get("specs"), Mapping) else {}
+    specs = normalize_specs(raw.get("specs"))
     category = " ".join(str(raw.get(key) or "").lower() for key in ("category", "product_type", "title"))
     signals: list[PlausibilitySignal] = []
     panel = str(specs.get("panel") or specs.get("panel_type") or "").lower()
